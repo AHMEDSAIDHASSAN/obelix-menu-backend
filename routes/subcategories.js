@@ -1,14 +1,9 @@
 const router = require('express').Router();
-const multer = require('multer');
-const path = require('path');
 const SubCategory = require('../models/SubCategory');
 const auth = require('../middleware/auth');
+const { makeUpload } = require('../lib/cloudinary');
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-  filename: (req, file, cb) => cb(null, `sub_${Date.now()}${path.extname(file.originalname)}`),
-});
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = makeUpload('subcategories');
 
 router.get('/', async (req, res) => {
   try {
@@ -34,7 +29,7 @@ router.get('/all', auth, async (req, res) => {
 router.post('/', auth, upload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = `/uploads/${req.file.filename}`;
+    if (req.file) data.image = req.file.path;
     const sub = await SubCategory.create(data);
     res.status(201).json(sub);
   } catch (e) {
@@ -45,7 +40,7 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
 router.put('/:id', auth, upload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = `/uploads/${req.file.filename}`;
+    if (req.file) data.image = req.file.path;
     const sub = await SubCategory.findByIdAndUpdate(req.params.id, data, { new: true });
     res.json(sub);
   } catch (e) {

@@ -1,14 +1,9 @@
 const router = require('express').Router();
-const multer = require('multer');
-const path = require('path');
 const Category = require('../models/Category');
 const auth = require('../middleware/auth');
+const { makeUpload } = require('../lib/cloudinary');
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-  filename: (req, file, cb) => cb(null, `cat_${Date.now()}${path.extname(file.originalname)}`),
-});
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = makeUpload('categories');
 
 // Public
 router.get('/', async (req, res) => {
@@ -43,7 +38,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', auth, upload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = `/uploads/${req.file.filename}`;
+    if (req.file) data.image = req.file.path;
     const cat = await Category.create(data);
     res.status(201).json(cat);
   } catch (e) {
@@ -54,7 +49,7 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
 router.put('/:id', auth, upload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = `/uploads/${req.file.filename}`;
+    if (req.file) data.image = req.file.path;
     const cat = await Category.findByIdAndUpdate(req.params.id, data, { new: true });
     res.json(cat);
   } catch (e) {
