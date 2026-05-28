@@ -35,6 +35,9 @@ router.post('/', auth, memUpload.single('image'), async (req, res) => {
     if (req.file) data.image = await uploadToCloudinary(req.file.buffer, 'products');
     if (data.sizes && typeof data.sizes === 'string') data.sizes = JSON.parse(data.sizes);
     if (data.tags && typeof data.tags === 'string') data.tags = JSON.parse(data.tags);
+    if (!data.subSubCategory) delete data.subSubCategory;
+    if (!data.subCategory) delete data.subCategory;
+    if (!data.category) delete data.category;
     res.status(201).json(await Product.create(data));
   } catch (e) { res.status(400).json({ message: e.message }); }
 });
@@ -45,6 +48,9 @@ router.put('/:id', auth, memUpload.single('image'), async (req, res) => {
     if (req.file) data.image = await uploadToCloudinary(req.file.buffer, 'products');
     if (data.sizes && typeof data.sizes === 'string') data.sizes = JSON.parse(data.sizes);
     if (data.tags && typeof data.tags === 'string') data.tags = JSON.parse(data.tags);
+    if (!data.subSubCategory) delete data.subSubCategory;
+    if (!data.subCategory) delete data.subCategory;
+    if (!data.category) delete data.category;
     res.json(await Product.findByIdAndUpdate(req.params.id, data, { new: true }));
   } catch (e) { res.status(400).json({ message: e.message }); }
 });
