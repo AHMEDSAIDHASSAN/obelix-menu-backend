@@ -31,6 +31,7 @@ app.use('/api/products', require('./routes/products'));
 app.use('/api/offers', require('./routes/offers'));
 app.use('/api/reviews', require('./routes/reviews'));
 app.use('/api/social', require('./routes/social'));
+app.use('/api/ai', require('./routes/ai'));
 
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/obelix-menu';
 const PORT = process.env.PORT || 5000;

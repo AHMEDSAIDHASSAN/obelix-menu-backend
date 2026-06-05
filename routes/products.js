@@ -62,4 +62,21 @@ router.delete('/:id', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+router.post('/bulk', auth, async (req, res) => {
+  try {
+    const { products } = req.body;
+    const created = await Product.insertMany(products.map((p) => ({
+      name: p.name,
+      nameAr: p.nameAr || '',
+      price: p.price || 0,
+      description: p.description || '',
+      sizes: p.sizes || [],
+      category: p.category || undefined,
+      subCategory: p.subCategory || undefined,
+      isAvailable: true,
+    })));
+    res.status(201).json({ count: created.length, products: created });
+  } catch (e) { res.status(400).json({ message: e.message }); }
+});
+
 module.exports = router;
