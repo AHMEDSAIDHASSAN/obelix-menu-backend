@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const multer = require('multer');
-const Anthropic = require('@anthropic-ai/sdk');
+const axios = require('axios');
 const auth = require('../middleware/auth');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -9,43 +9,53 @@ router.post('/scan-menu', auth, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No image provided' });
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const base64 = req.file.buffer.toString('base64');
     const mediaType = req.file.mimetype;
 
-    const response = await client.messages.create({
-      model: 'claude-opus-4-5',
-      max_tokens: 4096,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mediaType, data: base64 },
-          },
-          {
-            type: 'text',
-            text: `You are a menu parser. Extract ALL menu items from this menu image.
+    const prompt = `You are a menu parser. Extract ALL menu items from this menu image.
+
+This menu has one or more category sections. Each section has a large bold title (like MOJITO, SMOOTHIE, ICE TEA, MATCHA, COFFEE, FRAPPE, MILK SHAKE, HOT DRINK, DESSERT, CROISSANT, etc.) followed by product names and prices.
 
 Return ONLY a valid JSON array with no extra text, no markdown, no code blocks. Just the raw JSON array.
 
 Each item must have:
-- "name": product name in original language
+- "categoryName": the category section title this item belongs to (large heading above it, in English as written on the menu)
+- "name": product name as shown on the menu
 - "nameAr": Arabic name if visible, otherwise translate to Arabic
-- "price": base price as number (use 0 if only sizes exist)
+- "price": price as a number (e.g. 35)
 - "description": short description if visible, otherwise empty string
-- "sizes": array of size objects [{name, nameAr, price}] if the item has multiple sizes/options with different prices, otherwise empty array
+- "sizes": array [{name, nameAr, price}] if multiple sizes exist, otherwise empty array
 
-Example output:
-[{"name":"Margherita Pizza","nameAr":"بيتزا مارجريتا","price":25,"description":"Classic tomato and mozzarella","sizes":[]},{"name":"Grilled Chicken","nameAr":"دجاج مشوي","price":0,"description":"","sizes":[{"name":"Half","nameAr":"نصف","price":35},{"name":"Full","nameAr":"كامل","price":60}]}]
+If the page has multiple category sections, assign each item to its correct category.
 
-Extract every single item you can find. Be thorough.`,
-          },
-        ],
-      }],
-    });
+Example:
+[{"categoryName":"MOJITO","name":"Classic Mojito","nameAr":"موهيتو كلاسيك","price":35,"description":"","sizes":[]},{"categoryName":"SMOOTHIE","name":"Mango Smoothie","nameAr":"سموذي مانجو","price":45,"description":"","sizes":[]}]
 
-    const text = response.content[0].text.trim();
+Extract every single item. Be thorough.`;
+
+    const response = await axios.post(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        model: 'nvidia/nemotron-nano-12b-v2-vl:free',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}` } },
+          ],
+        }],
+        max_tokens: 4096,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 60000,
+      }
+    );
+
+    const text = response.data.choices[0].message.content.trim();
     let items;
     try {
       items = JSON.parse(text);
@@ -57,8 +67,9 @@ Extract every single item you can find. Be thorough.`,
 
     res.json({ items });
   } catch (e) {
-    console.error('AI scan error:', e.message);
-    res.status(500).json({ message: e.message });
+    const msg = e.response?.data?.error?.message || e.message;
+    console.error('AI scan error:', msg);
+    res.status(500).json({ message: msg });
   }
 });
 
