@@ -1,73 +1,83 @@
 const router = require('express').Router();
 const multer = require('multer');
-const axios = require('axios');
+const { GoogleGenerativeAI, SchemaType } = require('@google/generative-ai');
 const auth = require('../middleware/auth');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const responseSchema = {
+  type: SchemaType.ARRAY,
+  items: {
+    type: SchemaType.OBJECT,
+    properties: {
+      categoryName: { type: SchemaType.STRING },
+      name: { type: SchemaType.STRING },
+      nameAr: { type: SchemaType.STRING },
+      price: { type: SchemaType.NUMBER },
+      description: { type: SchemaType.STRING },
+      sizes: {
+        type: SchemaType.ARRAY,
+        items: {
+          type: SchemaType.OBJECT,
+          properties: {
+            name: { type: SchemaType.STRING },
+            nameAr: { type: SchemaType.STRING },
+            price: { type: SchemaType.NUMBER },
+          },
+          required: ['name', 'price'],
+        },
+      },
+    },
+    required: ['categoryName', 'name', 'price'],
+  },
+};
+
+const prompt = `You are a menu parser. Extract ALL menu items from this menu image.
+
+This menu has one or more category sections. Each section has a large bold title (like MOJITO, SMOOTHIE, ICE TEA, MATCHA, COFFEE, FRAPPE, MILK SHAKE, HOT DRINK, DESSERT, CROISSANT, etc.) followed by product names and prices.
+
+For each item return:
+- "categoryName": the category section title this item belongs to (large heading above it, in English as written on the menu)
+- "name": product name exactly as shown on the menu, in English/Latin script. Do not invent, translate, guess, or auto-correct — transcribe exactly what is printed, including spelling.
+- "nameAr": Arabic name if visible on the menu, otherwise a reasonable Arabic translation
+- "price": price as a number only (no currency symbol), e.g. 35
+- "description": short description if visible, otherwise empty string
+- "sizes": array of {name, nameAr, price} if multiple sizes/prices exist for one item, otherwise empty array
+
+Read every section of the image carefully, top to bottom, left to right, including small or low-contrast text. Do not skip any item. If the page has multiple category sections or columns, assign each item to its correct category.`;
 
 router.post('/scan-menu', auth, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No image provided' });
 
-    const base64 = req.file.buffer.toString('base64');
-    const mediaType = req.file.mimetype;
-
-    const prompt = `You are a menu parser. Extract ALL menu items from this menu image.
-
-This menu has one or more category sections. Each section has a large bold title (like MOJITO, SMOOTHIE, ICE TEA, MATCHA, COFFEE, FRAPPE, MILK SHAKE, HOT DRINK, DESSERT, CROISSANT, etc.) followed by product names and prices.
-
-Return ONLY a valid JSON array with no extra text, no markdown, no code blocks. Just the raw JSON array.
-
-Each item must have:
-- "categoryName": the category section title this item belongs to (large heading above it, in English as written on the menu)
-- "name": product name as shown on the menu
-- "nameAr": Arabic name if visible, otherwise translate to Arabic
-- "price": price as a number (e.g. 35)
-- "description": short description if visible, otherwise empty string
-- "sizes": array [{name, nameAr, price}] if multiple sizes exist, otherwise empty array
-
-If the page has multiple category sections, assign each item to its correct category.
-
-Example:
-[{"categoryName":"MOJITO","name":"Classic Mojito","nameAr":"موهيتو كلاسيك","price":35,"description":"","sizes":[]},{"categoryName":"SMOOTHIE","name":"Mango Smoothie","nameAr":"سموذي مانجو","price":45,"description":"","sizes":[]}]
-
-Extract every single item. Be thorough.`;
-
-    const response = await axios.post(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        model: 'nvidia/nemotron-nano-12b-v2-vl:free',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}` } },
-          ],
-        }],
-        max_tokens: 4096,
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-flash-latest',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema,
+        maxOutputTokens: 8192,
+        temperature: 0,
       },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 60000,
-      }
-    );
+    });
 
-    const text = response.data.choices[0].message.content.trim();
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { mimeType: req.file.mimetype, data: req.file.buffer.toString('base64') } },
+    ]);
+
+    const text = result.response.text();
     let items;
     try {
       items = JSON.parse(text);
     } catch {
-      const match = text.match(/\[[\s\S]*\]/);
-      if (match) items = JSON.parse(match[0]);
-      else return res.status(422).json({ message: 'Could not parse menu', raw: text });
+      return res.status(422).json({ message: 'Could not parse menu', raw: text });
     }
 
     res.json({ items });
   } catch (e) {
-    const msg = e.response?.data?.error?.message || e.message;
+    const msg = e.message || 'AI scan failed';
     console.error('AI scan error:', msg);
     res.status(500).json({ message: msg });
   }
