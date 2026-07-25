@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const Offer = require('../models/Offer');
 const auth = require('../middleware/auth');
-const { memUpload, uploadToCloudinary } = require('../lib/cloudinary');
+const { memUpload, saveUpload } = require('../lib/upload');
 
 router.get('/', async (req, res) => {
   try {
@@ -18,7 +18,7 @@ router.get('/all', auth, async (req, res) => {
 router.post('/', auth, memUpload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = await uploadToCloudinary(req.file.buffer, 'offers');
+    if (req.file) data.image = saveUpload(req.file.buffer, 'offers', req.file.originalname);
     res.status(201).json(await Offer.create(data));
   } catch (e) { res.status(400).json({ message: e.message }); }
 });
@@ -26,7 +26,7 @@ router.post('/', auth, memUpload.single('image'), async (req, res) => {
 router.put('/:id', auth, memUpload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = await uploadToCloudinary(req.file.buffer, 'offers');
+    if (req.file) data.image = saveUpload(req.file.buffer, 'offers', req.file.originalname);
     res.json(await Offer.findByIdAndUpdate(req.params.id, data, { new: true }));
   } catch (e) { res.status(400).json({ message: e.message }); }
 });

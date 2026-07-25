@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const Product = require('../models/Product');
 const auth = require('../middleware/auth');
-const { memUpload, uploadToCloudinary } = require('../lib/cloudinary');
+const { memUpload, saveUpload } = require('../lib/upload');
 
 router.get('/', async (req, res) => {
   try {
@@ -32,7 +32,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', auth, memUpload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = await uploadToCloudinary(req.file.buffer, 'products');
+    if (req.file) data.image = saveUpload(req.file.buffer, 'products', req.file.originalname);
     if (data.sizes && typeof data.sizes === 'string') data.sizes = JSON.parse(data.sizes);
     if (data.tags && typeof data.tags === 'string') data.tags = JSON.parse(data.tags);
     if (!data.subSubCategory) delete data.subSubCategory;
@@ -45,7 +45,7 @@ router.post('/', auth, memUpload.single('image'), async (req, res) => {
 router.put('/:id', auth, memUpload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = await uploadToCloudinary(req.file.buffer, 'products');
+    if (req.file) data.image = saveUpload(req.file.buffer, 'products', req.file.originalname);
     if (data.sizes && typeof data.sizes === 'string') data.sizes = JSON.parse(data.sizes);
     if (data.tags && typeof data.tags === 'string') data.tags = JSON.parse(data.tags);
     if (!data.subSubCategory) delete data.subSubCategory;

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const Category = require('../models/Category');
 const auth = require('../middleware/auth');
-const { memUpload, uploadToCloudinary } = require('../lib/cloudinary');
+const { memUpload, saveUpload } = require('../lib/upload');
 
 router.get('/', async (req, res) => {
   try {
@@ -26,7 +26,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', auth, memUpload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = await uploadToCloudinary(req.file.buffer, 'categories');
+    if (req.file) data.image = saveUpload(req.file.buffer, 'categories', req.file.originalname);
     res.status(201).json(await Category.create(data));
   } catch (e) { res.status(400).json({ message: e.message }); }
 });
@@ -34,7 +34,7 @@ router.post('/', auth, memUpload.single('image'), async (req, res) => {
 router.put('/:id', auth, memUpload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = await uploadToCloudinary(req.file.buffer, 'categories');
+    if (req.file) data.image = saveUpload(req.file.buffer, 'categories', req.file.originalname);
     res.json(await Category.findByIdAndUpdate(req.params.id, data, { new: true }));
   } catch (e) { res.status(400).json({ message: e.message }); }
 });

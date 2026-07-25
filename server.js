@@ -15,11 +15,7 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/api/health', (req, res) => {
-  res.json({
-    cloudinary_cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? 'set' : 'MISSING',
-    cloudinary_api_key: process.env.CLOUDINARY_API_KEY ? 'set' : 'MISSING',
-    cloudinary_api_secret: process.env.CLOUDINARY_API_SECRET ? 'set' : 'MISSING',
-  });
+  res.json({ status: 'ok' });
 });
 
 app.use('/api/auth', require('./routes/auth'));
