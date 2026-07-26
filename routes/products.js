@@ -68,9 +68,9 @@ router.post('/bulk', auth, async (req, res) => {
     const created = await Product.insertMany(products.map((p) => ({
       name: p.name,
       nameAr: p.nameAr || '',
-      price: p.price || 0,
+      basePrice: p.price || 0,
       description: p.description || '',
-      sizes: p.sizes || [],
+      sizes: (p.sizes || []).map((s) => ({ label: s.nameAr || s.name, price: s.price })),
       category: p.category || undefined,
       subCategory: p.subCategory || undefined,
       isAvailable: true,
